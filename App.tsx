@@ -209,6 +209,7 @@ const ExpandableCategorySection: React.FC<{
              
              {CATEGORIES.length > initialCount && (
                  <button 
+                    type="button"
                     onClick={onToggleExpanded}
                     className="w-full py-2 flex items-center justify-center gap-2 text-slate-400 hover:text-white text-sm font-bold transition-colors"
                  >
@@ -739,7 +740,7 @@ export default function App() {
           <h2 className="text-xl font-bold text-white">New Game</h2>
         </div>
 
-        <div className="flex-1 overflow-y-auto px-6 pb-24 no-scrollbar space-y-8 z-10">
+        <div className="flex-1 overflow-y-auto px-6 pb-40 no-scrollbar space-y-8 z-10">
           <div className="glass-panel p-6 rounded-3xl space-y-4">
             <div className="flex justify-between items-center">
               <h3 className="text-emerald-400 font-bold uppercase text-xs tracking-widest">Players</h3>
@@ -1017,7 +1018,7 @@ export default function App() {
         </div>
 
         {/* Scrollable Content Area */}
-        <div className="flex-1 overflow-y-auto px-6 pb-32 no-scrollbar space-y-6 z-10">
+        <div className="flex-1 overflow-y-auto px-6 pb-64 no-scrollbar space-y-6 z-10">
             
             {/* Players Section */}
             <div className="glass-panel rounded-3xl p-6 space-y-6">
