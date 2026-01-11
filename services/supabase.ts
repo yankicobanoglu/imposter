@@ -107,6 +107,19 @@ export const submitCustomWord = async (roomCode: string, word: string) => {
     }
 };
 
+export const submitFeatureRequest = async (text: string): Promise<{ success: boolean; error?: string }> => {
+  const supabase = getSupabase();
+  if (!supabase) return { success: false, error: "Database not connected" };
+
+  const { error } = await supabase.from('feature_requests').insert({ content: text });
+  
+  if (error) {
+    console.error("Error submitting feature request:", error);
+    return { success: false, error: error.message };
+  }
+  return { success: true };
+};
+
 export const subscribeToRoom = (roomCode: string, callback: (payload: RoomData) => void) => {
   const supabase = getSupabase();
   if (!supabase) return null;

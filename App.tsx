@@ -1,12 +1,12 @@
 import React, { useState, useEffect } from 'react';
-import { Users, Wifi, Trash2, HelpCircle, ArrowRight, UserPlus, RotateCcw, SkipForward, ArrowLeft, CheckCircle, Sparkles, Gavel, Settings2, Share, XCircle, ChevronDown, ChevronUp } from 'lucide-react';
+import { Users, Wifi, Trash2, HelpCircle, ArrowRight, UserPlus, RotateCcw, SkipForward, ArrowLeft, CheckCircle, Sparkles, Gavel, Settings2, Share, XCircle, ChevronDown, ChevronUp, FileText, Shield, MessageSquare, Send, X } from 'lucide-react';
 import { GameState, Difficulty, Player, RoomData } from './types';
 import { CATEGORIES } from './constants';
 import { getRandomWord, assignRoles } from './utils/gameLogic';
 import { Button } from './components/ui/Button';
 import { CategoryGrid } from './components/CategoryGrid';
 import { HowToPlay } from './components/HowToPlay';
-import { createRoom, joinRoom, subscribeToRoom, updateRoomState, hasCredentials, getSupabase, submitCustomWord } from './services/supabase';
+import { createRoom, joinRoom, subscribeToRoom, updateRoomState, hasCredentials, getSupabase, submitCustomWord, submitFeatureRequest } from './services/supabase';
 
 // --- Background Component ---
 const Background = () => (
@@ -109,6 +109,78 @@ const VoteModal: React.FC<{
   </div>
 );
 
+// --- New Footer & Legal Components ---
+
+const LegalModal: React.FC<{ title: string; content: React.ReactNode; onClose: () => void }> = ({ title, content, onClose }) => (
+  <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-fadeIn">
+    <div className="bg-slate-900 border border-white/10 rounded-3xl p-6 max-w-lg w-full shadow-2xl relative max-h-[80vh] flex flex-col">
+      <div className="flex justify-between items-center mb-4">
+        <h3 className="text-xl font-bold text-white">{title}</h3>
+        <button onClick={onClose} className="p-2 text-white/50 hover:text-white bg-white/5 rounded-full"><X size={18}/></button>
+      </div>
+      <div className="overflow-y-auto pr-2 text-slate-300 text-sm space-y-4 leading-relaxed">
+        {content}
+      </div>
+    </div>
+  </div>
+);
+
+const FeatureRequestModal: React.FC<{ onClose: () => void }> = ({ onClose }) => {
+  const [text, setText] = useState("");
+  const [status, setStatus] = useState<'idle' | 'submitting' | 'success' | 'error'>('idle');
+
+  const handleSubmit = async () => {
+    if (!text.trim()) return;
+    setStatus('submitting');
+    const res = await submitFeatureRequest(text);
+    if (res.success) {
+      setStatus('success');
+      setTimeout(onClose, 2000);
+    } else {
+      setStatus('error');
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-fadeIn">
+      <div className="bg-slate-900 border border-white/10 rounded-3xl p-6 max-w-sm w-full shadow-2xl relative">
+        <div className="flex justify-between items-center mb-4">
+           <h3 className="text-xl font-bold text-white flex items-center gap-2"><Sparkles className="text-yellow-400" size={20}/> Feature Request</h3>
+           <button onClick={onClose} className="p-2 text-white/50 hover:text-white bg-white/5 rounded-full"><X size={18}/></button>
+        </div>
+        
+        {status === 'success' ? (
+          <div className="py-8 text-center space-y-3">
+             <div className="w-16 h-16 bg-emerald-500/20 text-emerald-400 rounded-full flex items-center justify-center mx-auto mb-2">
+                <CheckCircle size={32} />
+             </div>
+             <p className="text-white font-bold">Request Sent!</p>
+             <p className="text-slate-400 text-xs">Thanks for helping us improve.</p>
+          </div>
+        ) : (
+          <div className="space-y-4">
+             <p className="text-sm text-slate-400">Have an idea? Let us know! (Max 150 words)</p>
+             <textarea 
+               className="w-full bg-slate-950/50 border border-white/10 rounded-xl p-3 text-white text-sm focus:border-emerald-500 outline-none resize-none h-32"
+               placeholder="I wish this game had..."
+               value={text}
+               onChange={(e) => setText(e.target.value)}
+               maxLength={500}
+             ></textarea>
+             <div className="flex justify-end text-xs text-slate-500">
+               {text.length}/500 chars
+             </div>
+             <Button fullWidth onClick={handleSubmit} disabled={status === 'submitting' || !text.trim()}>
+                {status === 'submitting' ? 'Sending...' : 'Send Request'} <Send size={16} className="ml-2"/>
+             </Button>
+             {status === 'error' && <p className="text-red-400 text-xs text-center">Failed to send. Try again.</p>}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+};
+
 // Expandable Category Section
 const ExpandableCategorySection: React.FC<{ 
   selectedIds: string[]; 
@@ -185,6 +257,11 @@ export default function App() {
   
   // New State for Invite Flow
   const [isInviteFlow, setIsInviteFlow] = useState<boolean>(false);
+
+  // UI Modals State
+  const [showTos, setShowTos] = useState(false);
+  const [showPrivacy, setShowPrivacy] = useState(false);
+  const [showFeatureRequest, setShowFeatureRequest] = useState(false);
 
   // --- Effects ---
 
@@ -567,37 +644,83 @@ export default function App() {
       <div className="min-h-screen flex flex-col max-w-md mx-auto relative overflow-hidden">
         <Background />
         {showHowToPlay && <HowToPlay onClose={() => setShowHowToPlay(false)} />}
+        {showFeatureRequest && <FeatureRequestModal onClose={() => setShowFeatureRequest(false)} />}
+        
+        {/* TOS Modal */}
+        {showTos && <LegalModal title="Terms of Service" onClose={() => setShowTos(false)} content={
+           <>
+              <p><strong>Last Updated: Feb 2025</strong></p>
+              <p>Welcome to Imposter! By accessing or using our game, you agree to be bound by these Terms of Service. If you do not agree to all the terms and conditions, then you may not access the service.</p>
+              <p><strong>1. Fair Play</strong><br/>You agree to play fairly and respect other players. Cheating, harassment, or abusive language may result in being banned from online play.</p>
+              <p><strong>2. User Content</strong><br/>Any words or names you input into the game (Pot Mode, Player Names) are your responsibility. Do not submit offensive or illegal content.</p>
+              <p><strong>3. Disclaimer</strong><br/>The game is provided "as is" without warranty of any kind. We are not responsible for any issues arising from your use of the app.</p>
+           </>
+        } />}
+
+        {/* Privacy Modal */}
+        {showPrivacy && <LegalModal title="Privacy Policy" onClose={() => setShowPrivacy(false)} content={
+           <>
+              <p><strong>Last Updated: Feb 2025</strong></p>
+              <p>Your privacy is important to us. This policy explains how we handle your data.</p>
+              <p><strong>1. Data Collection</strong><br/>We collect minimal data to enable gameplay, such as room codes and temporary game states. We do not track your location or personal identity.</p>
+              <p><strong>2. Feature Requests</strong><br/>If you submit a feature request, the text you submit is stored anonymously to help us improve the game.</p>
+              <p><strong>3. Third Parties</strong><br/>We use Supabase for realtime database functionality. Please refer to their privacy policy for data storage specifics.</p>
+           </>
+        } />}
+
         <Header />
         
-        <div className="flex-1 flex flex-col justify-center px-6 gap-8 z-10">
-          <div className="text-center space-y-4">
-            <h2 className="text-5xl font-bold text-white tracking-tight drop-shadow-2xl">
-              Who is the<br/>
-              <span className="text-transparent bg-clip-text bg-gradient-to-r from-emerald-400 to-teal-300">Imposter?</span>
-            </h2>
-            <p className="text-slate-300 text-lg font-medium">Deception. Deduction. Fun.</p>
+        <div className="flex-1 flex flex-col px-6 z-10 pb-6">
+          <div className="flex-1 flex flex-col justify-center gap-8">
+            <div className="text-center space-y-4">
+              <h2 className="text-5xl font-bold text-white tracking-tight drop-shadow-2xl">
+                Who is the<br/>
+                <span className="text-transparent bg-clip-text bg-gradient-to-r from-emerald-400 to-teal-300">Imposter?</span>
+              </h2>
+              <p className="text-slate-300 text-lg font-medium">Deception. Deduction. Fun.</p>
+            </div>
+
+            <div className="space-y-4 mt-8">
+              <Button fullWidth onClick={() => setGameState(GameState.SETUP)}>
+                <div className="flex items-center justify-center gap-3">
+                  <Users className="text-slate-900" size={24} /> 
+                  <span className="text-lg">Local Play</span>
+                </div>
+              </Button>
+              <Button fullWidth variant="glass" onClick={() => setGameState(GameState.REMOTE_MENU)}>
+                <div className="flex items-center justify-center gap-3">
+                  <Wifi className="text-emerald-400" size={24} /> 
+                  <span className="text-lg">Online Play</span>
+                </div>
+              </Button>
+              
+              <button 
+                  onClick={() => setShowHowToPlay(true)}
+                  className="w-full py-4 text-slate-400 font-semibold hover:text-white transition-colors flex items-center justify-center gap-2"
+              >
+                  <HelpCircle size={18} /> How to play
+              </button>
+            </div>
           </div>
 
-          <div className="space-y-4 mt-8">
-            <Button fullWidth onClick={() => setGameState(GameState.SETUP)}>
-              <div className="flex items-center justify-center gap-3">
-                <Users className="text-slate-900" size={24} /> 
-                <span className="text-lg">Local Play</span>
-              </div>
-            </Button>
-            <Button fullWidth variant="glass" onClick={() => setGameState(GameState.REMOTE_MENU)}>
-              <div className="flex items-center justify-center gap-3">
-                <Wifi className="text-emerald-400" size={24} /> 
-                <span className="text-lg">Online Play</span>
-              </div>
-            </Button>
-            
-            <button 
-                onClick={() => setShowHowToPlay(true)}
-                className="w-full py-4 text-slate-400 font-semibold hover:text-white transition-colors flex items-center justify-center gap-2"
-            >
-                <HelpCircle size={18} /> How to play
-            </button>
+          {/* Footer Section */}
+          <div className="mt-8 flex flex-col items-center gap-6">
+             <button 
+               onClick={() => setShowFeatureRequest(true)}
+               className="flex items-center gap-2 text-yellow-400 hover:text-yellow-300 bg-yellow-400/10 px-4 py-2 rounded-full border border-yellow-400/20 transition-all hover:bg-yellow-400/20 text-sm font-bold"
+             >
+                <MessageSquare size={16} /> Feature Request?
+             </button>
+
+             <div className="flex gap-4 text-xs text-slate-500 font-semibold">
+                <button onClick={() => setShowTos(true)} className="hover:text-emerald-400 transition-colors">Terms of Service</button>
+                <span>•</span>
+                <button onClick={() => setShowPrivacy(true)} className="hover:text-emerald-400 transition-colors">Privacy Policy</button>
+             </div>
+
+             <div className="text-transparent bg-clip-text bg-gradient-to-r from-purple-400 to-pink-400 text-[10px] font-bold uppercase tracking-[0.2em] opacity-80">
+                Vibed with Gemini
+             </div>
           </div>
         </div>
       </div>
