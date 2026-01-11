@@ -46,6 +46,7 @@ export interface WordPack {
 
 export interface RoomSettings {
   timerDuration: number; // Seconds. 0 = off
+  imposterCount?: number; // 1 or 2
 }
 
 export interface RoomData {

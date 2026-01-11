@@ -161,6 +161,7 @@ export default function App() {
   // Settings
   const [timerDuration, setTimerDuration] = useState<number>(0); // 0 means off
   const [timeLeft, setTimeLeft] = useState<number>(0);
+  const [localImposterCount, setLocalImposterCount] = useState<number>(1);
 
   // Game Data
   const [currentWord, setCurrentWord] = useState<string>('');
@@ -245,6 +246,8 @@ export default function App() {
     const newPlayers = [...players];
     newPlayers.splice(index, 1);
     setPlayers(newPlayers);
+    // Reset local imposter count if players drop below 7
+    if (newPlayers.length < 7) setLocalImposterCount(1);
   };
 
   const updatePlayerName = (index: number, name: string) => {
@@ -347,7 +350,8 @@ export default function App() {
     }
 
     setIsRevealing(false);
-    const initializedPlayers = assignRoles(players);
+    // Use the localImposterCount (1 or 2)
+    const initializedPlayers = assignRoles(players, localImposterCount);
     setPlayers(initializedPlayers);
     const { word, categoryName } = getRandomWord(selectedCategories, selectedDifficulties, usedWords);
     
@@ -386,7 +390,8 @@ export default function App() {
           
           // Start the actual game with custom pool
           setIsRevealing(false);
-          const initializedPlayers = assignRoles(players);
+          // Use localImposterCount here too
+          const initializedPlayers = assignRoles(players, localImposterCount);
           setPlayers(initializedPlayers);
           const pool = word ? [...localCustomWords, word] : localCustomWords; // include last word
           const { word: chosenWord, categoryName } = getRandomWord(['custom'], [], [], pool);
@@ -419,7 +424,7 @@ export default function App() {
           game_state: 'LOBBY',
           current_word: '',
           current_category: '',
-          settings: { timerDuration: 0 },
+          settings: { timerDuration: 0, imposterCount: 1 },
           custom_words: [],
           starting_player_index: 0,
           used_words: []
@@ -462,18 +467,24 @@ export default function App() {
   const startRemoteGame = async () => {
     if (!roomData) return;
     if (roomData.players.length < 3) return alert("You need at least 3 players to start.");
+    
+    // Ensure we use the latest settings for imposter count
+    const imposters = roomData.settings?.imposterCount || 1;
 
     // Check Pot Mode
     if (selectedCategories.includes('custom')) {
         await updateRoomState(roomCode, { 
             game_state: 'INPUT', 
             custom_words: [], 
-            settings: { timerDuration: timerDuration }
+            settings: { 
+                timerDuration: timerDuration,
+                imposterCount: imposters
+            }
         });
         return;
     }
 
-    const initializedPlayers = assignRoles(roomData.players);
+    const initializedPlayers = assignRoles(roomData.players, imposters);
     const usedWordsList = roomData.used_words || [];
     const { word, categoryName } = getRandomWord(selectedCategories, selectedDifficulties, usedWordsList);
     const newStartingIndex = ((roomData.starting_player_index || 0) + 1) % roomData.players.length;
@@ -483,7 +494,10 @@ export default function App() {
       current_word: word,
       current_category: categoryName,
       game_state: 'PLAYING',
-      settings: { timerDuration: timerDuration },
+      settings: { 
+          timerDuration: timerDuration,
+          imposterCount: imposters
+      },
       votes: {},
       started_at: new Date().toISOString(),
       starting_player_index: newStartingIndex,
@@ -511,8 +525,9 @@ export default function App() {
           await updateRoomState(roomCode, { game_state: 'LOBBY' }); // Reset to lobby to pick new cat
           return;
       }
-
-      const initializedPlayers = assignRoles(roomData.players);
+      
+      const imposters = roomData.settings?.imposterCount || 1;
+      const initializedPlayers = assignRoles(roomData.players, imposters);
       const { word, categoryName } = getRandomWord(['custom'], [], [], pool);
       const newStartingIndex = ((roomData.starting_player_index || 0) + 1) % roomData.players.length;
 
@@ -634,6 +649,27 @@ export default function App() {
                 ))}
             </div>
           </div>
+
+          {/* Imposter Count Setting (Visible only if players >= 7) */}
+          {players.length >= 7 && (
+              <div className="glass-panel p-6 rounded-3xl space-y-4 animate-fadeIn">
+                <div className="flex justify-between items-center">
+                    <h3 className="text-emerald-400 font-bold uppercase text-xs tracking-widest">Imposters</h3>
+                    <span className="text-white text-sm font-bold">{localImposterCount}</span>
+                </div>
+                <div className="flex gap-2 bg-slate-900/50 p-1.5 rounded-xl border border-white/5">
+                    {[1, 2].map(count => (
+                        <button 
+                            key={count}
+                            onClick={() => setLocalImposterCount(count)}
+                            className={`flex-1 py-2 rounded-lg text-xs font-bold transition-all ${localImposterCount === count ? 'bg-indigo-500 text-white shadow-lg' : 'text-slate-400 hover:text-white'}`}
+                        >
+                            {count} Imposter{count > 1 ? 's' : ''}
+                        </button>
+                    ))}
+                </div>
+              </div>
+          )}
 
           <div className="glass-panel p-6 rounded-3xl space-y-4">
             <h3 className="text-emerald-400 font-bold uppercase text-xs tracking-widest">Difficulty</h3>
@@ -832,6 +868,10 @@ export default function App() {
     // Calculate if all selected for UI
     const allRegularCategories = CATEGORIES.filter(c => !c.isCustom).map(c => c.id);
     const isAllSelected = allRegularCategories.every(id => selectedCategories.includes(id));
+    const playerCount = roomData?.players.length || 0;
+    
+    // Get current imposter setting from roomData, default to 1
+    const currentImposterCount = roomData?.settings?.imposterCount || 1;
 
     return (
       <div className="min-h-screen flex flex-col max-w-md mx-auto relative">
@@ -853,13 +893,13 @@ export default function App() {
         </div>
 
         {/* Scrollable Content Area */}
-        <div className="flex-1 overflow-y-auto px-6 pb-24 no-scrollbar space-y-6 z-10">
+        <div className="flex-1 overflow-y-auto px-6 pb-32 no-scrollbar space-y-6 z-10">
             
             {/* Players Section */}
             <div className="glass-panel rounded-3xl p-6 space-y-6">
                 <div className="flex justify-between items-center border-b border-white/10 pb-4">
                     <h3 className="text-white font-bold flex items-center gap-2">
-                    <Users size={20} className="text-emerald-400"/> Players ({roomData?.players.length})
+                    <Users size={20} className="text-emerald-400"/> Players ({playerCount})
                     </h3>
                 </div>
                 <div className="space-y-2">
@@ -899,6 +939,35 @@ export default function App() {
                             ))}
                         </div>
                     </div>
+
+                    {/* Imposter Count Setting (Visible only if players >= 7) */}
+                    {playerCount >= 7 && (
+                        <div className="glass-panel p-6 rounded-3xl space-y-4 animate-fadeIn">
+                            <div className="flex justify-between items-center">
+                                <h3 className="text-emerald-400 font-bold uppercase text-xs tracking-widest">Imposters</h3>
+                                <span className="text-white text-sm font-bold">{currentImposterCount}</span>
+                            </div>
+                            <div className="flex gap-2 bg-slate-900/50 p-1.5 rounded-xl border border-white/5">
+                                {[1, 2].map(count => (
+                                    <button 
+                                        key={count}
+                                        onClick={() => updateRoomState(roomCode, { 
+                                            settings: { 
+                                                ...roomData?.settings, 
+                                                timerDuration: timerDuration, // Preserve current local timer if any, or sync? ideally sync. 
+                                                // Actually we should rely on roomData.settings but for simplicity we are updating full object.
+                                                // Let's use the local state for timer since host drives it.
+                                                imposterCount: count 
+                                            } 
+                                        })}
+                                        className={`flex-1 py-2 rounded-lg text-xs font-bold transition-all ${currentImposterCount === count ? 'bg-indigo-500 text-white shadow-lg' : 'text-slate-400 hover:text-white'}`}
+                                    >
+                                        {count} Imposter{count > 1 ? 's' : ''}
+                                    </button>
+                                ))}
+                            </div>
+                        </div>
+                    )}
 
                     {/* Difficulty UI */}
                     <div className="glass-panel p-6 rounded-3xl space-y-4">
@@ -940,9 +1009,15 @@ export default function App() {
         {/* Start Game Button Area */}
         <div className="p-6 fixed bottom-0 left-0 right-0 max-w-md mx-auto z-20 bg-gradient-to-t from-slate-950 via-slate-950/90 to-transparent pt-12">
           {isHost ? (
-            <Button fullWidth onClick={startRemoteGame}>Start Game</Button>
+            <div className="space-y-3">
+                 <Button fullWidth onClick={startRemoteGame}>Start Game</Button>
+                 <Button fullWidth variant="ghost" onClick={() => setGameState(GameState.MENU)}>Return to Main Menu</Button>
+            </div>
           ) : (
-            <div className="text-center text-white/50 animate-pulse bg-black/20 p-4 rounded-xl backdrop-blur-md">Waiting for host to start...</div>
+             <div className="space-y-3">
+                <div className="text-center text-white/50 animate-pulse bg-black/20 p-4 rounded-xl backdrop-blur-md">Waiting for host to start...</div>
+                <Button fullWidth variant="ghost" onClick={() => setGameState(GameState.MENU)}>Exit Lobby</Button>
+            </div>
           )}
         </div>
       </div>

@@ -64,7 +64,7 @@ export const getRandomWord = (
   return { word: selection.word, categoryName: selection.category };
 };
 
-export const assignRoles = (players: Player[]): Player[] => {
+export const assignRoles = (players: Player[], imposterCount: number = 1): Player[] => {
   const newPlayers = [...players];
   const totalPlayers = newPlayers.length;
   
@@ -74,12 +74,11 @@ export const assignRoles = (players: Player[]): Player[] => {
     p.hasViewedRole = false;
   });
 
-  // Determine number of imposters
-  // If > 7 players, we have 2 imposters. Otherwise 1.
-  const numImposters = totalPlayers > 7 ? 2 : 1;
+  // Ensure imposter count is valid (can't have more imposters than players - 1)
+  const safeImposterCount = Math.min(Math.max(1, imposterCount), totalPlayers - 1);
   
   let impostersAssigned = 0;
-  while (impostersAssigned < numImposters) {
+  while (impostersAssigned < safeImposterCount) {
       const randomIndex = Math.floor(Math.random() * totalPlayers);
       if (!newPlayers[randomIndex].isImposter) {
           newPlayers[randomIndex].isImposter = true;
