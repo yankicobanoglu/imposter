@@ -689,7 +689,7 @@ export default function App() {
               <Button fullWidth onClick={() => setGameState(GameState.SETUP)}>
                 <div className="flex items-center justify-center gap-3">
                   <Users className="text-slate-900" size={24} /> 
-                  <span className="text-lg">Local Play</span>
+                  <span className="text-lg">Local Play (Pass & Play)</span>
                 </div>
               </Button>
               <Button fullWidth variant="glass" onClick={() => setGameState(GameState.REMOTE_MENU)}>
