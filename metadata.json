@@ -1,0 +1,5 @@
+{
+  "name": "Imposter - The Word Game",
+  "description": "A social deduction game where players describe a secret word, but one person is the Imposter who knows nothing. Features local pass-and-play and setup for remote play.",
+  "requestFramePermissions": []
+}
