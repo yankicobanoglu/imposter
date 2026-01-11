@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Users, Wifi, Trash2, HelpCircle, ArrowRight, UserPlus, RotateCcw, SkipForward, ArrowLeft, CheckCircle, Sparkles, Gavel, Settings2, Share, XCircle, ChevronDown, ChevronUp } from 'lucide-react';
-import { GameState, Difficulty, Player, RoomData, Category } from './types';
+import { GameState, Difficulty, Player, RoomData } from './types';
 import { CATEGORIES } from './constants';
 import { getRandomWord, assignRoles } from './utils/gameLogic';
 import { Button } from './components/ui/Button';
