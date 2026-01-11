@@ -8,6 +8,8 @@ import { CategoryGrid } from './components/CategoryGrid';
 import { HowToPlay } from './components/HowToPlay';
 import { createRoom, joinRoom, subscribeToRoom, updateRoomState, hasCredentials, getSupabase, submitCustomWord, submitFeatureRequest } from './services/supabase';
 
+const APP_VERSION = "v.9";
+
 // --- Background Component ---
 const Background = () => (
   <div className="fixed inset-0 -z-10 bg-[#0f172a] overflow-hidden">
@@ -187,9 +189,9 @@ const ExpandableCategorySection: React.FC<{
   onToggle: (id: string) => void;
   onSelectAll: () => void;
   isAllSelected: boolean;
-}> = ({ selectedIds, onToggle, onSelectAll, isAllSelected }) => {
-    const [expanded, setExpanded] = useState(false);
-
+  expanded: boolean;
+  onToggleExpanded: () => void;
+}> = ({ selectedIds, onToggle, onSelectAll, isAllSelected, expanded, onToggleExpanded }) => {
     // First 6 + Custom are primary
     const initialCount = 6;
     const visibleCategories = expanded ? CATEGORIES : CATEGORIES.slice(0, initialCount);
@@ -207,7 +209,7 @@ const ExpandableCategorySection: React.FC<{
              
              {CATEGORIES.length > initialCount && (
                  <button 
-                    onClick={() => setExpanded(!expanded)}
+                    onClick={onToggleExpanded}
                     className="w-full py-2 flex items-center justify-center gap-2 text-slate-400 hover:text-white text-sm font-bold transition-colors"
                  >
                      {expanded ? <>Show Less <ChevronUp size={16}/></> : <>Show More Categories ({CATEGORIES.length - initialCount}) <ChevronDown size={16}/></>}
@@ -229,6 +231,8 @@ export default function App() {
   ]);
   const [selectedCategories, setSelectedCategories] = useState<string[]>(['animals', 'food', 'objects']);
   const [selectedDifficulties, setSelectedDifficulties] = useState<Difficulty[]>([Difficulty.EASY]);
+  // Lifted state for categories expansion
+  const [isCategoriesExpanded, setIsCategoriesExpanded] = useState(false);
   
   // Settings
   const [timerDuration, setTimerDuration] = useState<number>(0); // 0 means off
@@ -719,7 +723,7 @@ export default function App() {
              </div>
 
              <div className="text-transparent bg-clip-text bg-gradient-to-r from-purple-400 to-pink-400 text-[10px] font-bold uppercase tracking-[0.2em] opacity-80">
-                Vibed with Gemini
+                Vibed with Gemini {APP_VERSION}
              </div>
           </div>
         </div>
@@ -819,6 +823,8 @@ export default function App() {
                 onToggle={toggleCategory} 
                 onSelectAll={toggleAllCategories} 
                 isAllSelected={isAllSelected}
+                expanded={isCategoriesExpanded}
+                onToggleExpanded={() => setIsCategoriesExpanded(!isCategoriesExpanded)}
              />
           </div>
         </div>
@@ -1119,6 +1125,8 @@ export default function App() {
                             onToggle={toggleCategory} 
                             onSelectAll={toggleAllCategories}
                             isAllSelected={isAllSelected}
+                            expanded={isCategoriesExpanded}
+                            onToggleExpanded={() => setIsCategoriesExpanded(!isCategoriesExpanded)}
                         />
                     </div>
                 </div>
