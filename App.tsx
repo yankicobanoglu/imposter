@@ -1,12 +1,12 @@
 import React, { useState, useEffect } from 'react';
-import { Users, Wifi, Trash2, HelpCircle, ArrowRight, UserPlus, RotateCcw, SkipForward, ArrowLeft, CheckCircle, Sparkles, Gavel, Settings2, Share, XCircle } from 'lucide-react';
-import { GameState, Difficulty, Player, RoomData } from './types';
+import { Users, Wifi, Trash2, HelpCircle, ArrowRight, UserPlus, RotateCcw, SkipForward, ArrowLeft, CheckCircle, Sparkles, Gavel, Settings2, Share, XCircle, ChevronDown, ChevronUp } from 'lucide-react';
+import { GameState, Difficulty, Player, RoomData, Category } from './types';
 import { CATEGORIES } from './constants';
 import { getRandomWord, assignRoles } from './utils/gameLogic';
 import { Button } from './components/ui/Button';
 import { CategoryGrid } from './components/CategoryGrid';
 import { HowToPlay } from './components/HowToPlay';
-import { createRoom, joinRoom, subscribeToRoom, updateRoomState, hasCredentials, getSupabase } from './services/supabase';
+import { createRoom, joinRoom, subscribeToRoom, updateRoomState, hasCredentials, getSupabase, submitCustomWord } from './services/supabase';
 
 // --- Background Component ---
 const Background = () => (
@@ -109,6 +109,42 @@ const VoteModal: React.FC<{
   </div>
 );
 
+// Expandable Category Section
+const ExpandableCategorySection: React.FC<{ 
+  selectedIds: string[]; 
+  onToggle: (id: string) => void;
+  onSelectAll: () => void;
+  isAllSelected: boolean;
+}> = ({ selectedIds, onToggle, onSelectAll, isAllSelected }) => {
+    const [expanded, setExpanded] = useState(false);
+
+    // First 6 + Custom are primary
+    const initialCount = 6;
+    const visibleCategories = expanded ? CATEGORIES : CATEGORIES.slice(0, initialCount);
+
+    return (
+        <div className="space-y-4">
+             <div className="flex justify-between items-end px-2">
+                <h3 className="text-emerald-400 font-bold uppercase text-xs tracking-widest">Categories</h3>
+                <button onClick={onSelectAll} className="text-xs text-white/60 hover:text-white underline">
+                    {isAllSelected ? 'Deselect All' : 'Select All'}
+                </button>
+             </div>
+             
+             <CategoryGrid categories={visibleCategories} selectedIds={selectedIds} onToggle={onToggle} />
+             
+             {CATEGORIES.length > initialCount && (
+                 <button 
+                    onClick={() => setExpanded(!expanded)}
+                    className="w-full py-2 flex items-center justify-center gap-2 text-slate-400 hover:text-white text-sm font-bold transition-colors"
+                 >
+                     {expanded ? <>Show Less <ChevronUp size={16}/></> : <>Show More Categories ({CATEGORIES.length - initialCount}) <ChevronDown size={16}/></>}
+                 </button>
+             )}
+        </div>
+    )
+}
+
 export default function App() {
   // --- State ---
   const [gameState, setGameState] = useState<GameState>(GameState.MENU);
@@ -129,8 +165,12 @@ export default function App() {
   // Game Data
   const [currentWord, setCurrentWord] = useState<string>('');
   const [currentCategoryName, setCurrentCategoryName] = useState<string>('');
-  const [currentPlayerIndex, setCurrentPlayerIndex] = useState<number>(0);
+  const [currentPlayerIndex, setCurrentPlayerIndex] = useState<number>(0); // Used for Pass 'n Play Reveal
+  const [startingPlayerIndex, setStartingPlayerIndex] = useState<number>(0); // Used for Discussion Start
   const [isRevealing, setIsRevealing] = useState<boolean>(false);
+  const [localCustomWords, setLocalCustomWords] = useState<string[]>([]); // For local pot mode
+  const [customWordInput, setCustomWordInput] = useState<string>('');
+  const [usedWords, setUsedWords] = useState<string[]>([]); // Track used words locally
   
   // Remote Play State
   const [showHowToPlay, setShowHowToPlay] = useState<boolean>(false);
@@ -159,12 +199,13 @@ export default function App() {
   }, []);
 
   useEffect(() => {
-    if ((gameState === GameState.REMOTE_LOBBY || gameState === GameState.REMOTE_PLAYING || gameState === GameState.REMOTE_REVEAL) && roomCode) {
+    if ((gameState === GameState.REMOTE_LOBBY || gameState === GameState.REMOTE_PLAYING || gameState === GameState.REMOTE_REVEAL || gameState === GameState.REMOTE_INPUT) && roomCode) {
       const sub = subscribeToRoom(roomCode, (newData) => {
         setRoomData(newData);
         if (newData.game_state === 'PLAYING' && gameState !== GameState.REMOTE_PLAYING) setGameState(GameState.REMOTE_PLAYING);
         if (newData.game_state === 'REVEAL' && gameState !== GameState.REMOTE_REVEAL) setGameState(GameState.REMOTE_REVEAL);
         if (newData.game_state === 'LOBBY' && gameState !== GameState.REMOTE_LOBBY) setGameState(GameState.REMOTE_LOBBY);
+        if (newData.game_state === 'INPUT' && gameState !== GameState.REMOTE_INPUT) setGameState(GameState.REMOTE_INPUT);
       });
       return () => { sub?.unsubscribe(); };
     }
@@ -213,18 +254,36 @@ export default function App() {
   };
 
   const toggleCategory = (id: string) => {
-    if (selectedCategories.includes(id)) {
-      if (selectedCategories.length > 1) setSelectedCategories(selectedCategories.filter(c => c !== id));
-    } else {
-      setSelectedCategories([...selectedCategories, id]);
+    // If Custom is selected, it must be the ONLY category (simplification for game logic)
+    if (id === 'custom') {
+        if (selectedCategories.includes('custom')) {
+             setSelectedCategories(['animals']); // Fallback
+        } else {
+             setSelectedCategories(['custom']);
+        }
+        return;
     }
+
+    // If Custom was previously selected and we pick something else, remove Custom
+    let newSelection = selectedCategories.filter(c => c !== 'custom');
+    
+    if (newSelection.includes(id)) {
+      if (newSelection.length > 1) newSelection = newSelection.filter(c => c !== id);
+    } else {
+      newSelection = [...newSelection, id];
+    }
+    setSelectedCategories(newSelection);
   };
 
   const toggleAllCategories = () => {
-    if (selectedCategories.length === CATEGORIES.length) {
-      setSelectedCategories([]);
+    // Check if all regular categories are currently selected
+    const allRegularCategories = CATEGORIES.filter(c => !c.isCustom).map(c => c.id);
+    const isAllSelected = allRegularCategories.every(id => selectedCategories.includes(id));
+
+    if (isAllSelected) {
+        setSelectedCategories([]);
     } else {
-      setSelectedCategories(CATEGORIES.map(c => c.id));
+        setSelectedCategories(allRegularCategories);
     }
   };
 
@@ -248,7 +307,6 @@ export default function App() {
       try {
         await navigator.share(shareData);
       } catch (err) {
-        // User cancelled or share failed, fallback to clipboard is fine but usually unnecessary if cancelled.
         console.log("Share skipped", err);
       }
     } else {
@@ -279,20 +337,71 @@ export default function App() {
     if (selectedCategories.length === 0) return alert("Please select at least one category.");
     if (players.length < 3) return alert("You need at least 3 players to start.");
     
+    // Check for Pot Mode
+    if (selectedCategories.includes('custom')) {
+        setLocalCustomWords([]);
+        setCurrentPlayerIndex(0);
+        setCustomWordInput('');
+        setGameState(GameState.INPUT);
+        return;
+    }
+
     setIsRevealing(false);
     const initializedPlayers = assignRoles(players);
     setPlayers(initializedPlayers);
-    const { word, categoryName } = getRandomWord(selectedCategories, selectedDifficulties);
+    const { word, categoryName } = getRandomWord(selectedCategories, selectedDifficulties, usedWords);
+    
+    // Track used word
+    setUsedWords(prev => [...prev, word]);
+
     setCurrentWord(word);
     setCurrentCategoryName(categoryName);
     setCurrentPlayerIndex(0);
+    // Rotate starting player locally
+    setStartingPlayerIndex((prev) => (prev + 1) % players.length);
     setTimeLeft(timerDuration);
     setGameState(GameState.PASS_N_PLAY);
   };
 
+  // Handle local custom word submission
+  const handleLocalCustomSubmit = (word: string | null) => {
+      // If word provided, add to pool. If null, skipped.
+      if (word && word.trim().length > 0) {
+          setLocalCustomWords([...localCustomWords, word.trim()]);
+      }
+      setCustomWordInput('');
+
+      // Move to next player
+      if (currentPlayerIndex < players.length - 1) {
+          setCurrentPlayerIndex(currentPlayerIndex + 1);
+      } else {
+          // All players submitted. Start game.
+          if (localCustomWords.length === 0 && (!word || word.trim().length === 0)) {
+               // Edge case: everyone skipped
+               alert("Everyone skipped! Switching to random category.");
+               setSelectedCategories(['animals']); // Fallback
+               setGameState(GameState.SETUP);
+               return;
+          }
+          
+          // Start the actual game with custom pool
+          setIsRevealing(false);
+          const initializedPlayers = assignRoles(players);
+          setPlayers(initializedPlayers);
+          const pool = word ? [...localCustomWords, word] : localCustomWords; // include last word
+          const { word: chosenWord, categoryName } = getRandomWord(['custom'], [], [], pool);
+          setCurrentWord(chosenWord);
+          setCurrentCategoryName(categoryName);
+          setCurrentPlayerIndex(0);
+          setStartingPlayerIndex((prev) => (prev + 1) % players.length);
+          setTimeLeft(timerDuration);
+          setGameState(GameState.PASS_N_PLAY);
+      }
+  };
+
   const handleCreateRoom = async () => {
     if (!myPlayerName) return alert("Enter your name first");
-    if (!hasCredentials()) return alert("Database not connected. Please see instructions in source code (supabaseConfig.ts).");
+    if (!hasCredentials()) return alert("Database not connected.");
     
     setIsLoading(true);
     const myId = Math.random().toString(36).substr(2, 9);
@@ -310,7 +419,10 @@ export default function App() {
           game_state: 'LOBBY',
           current_word: '',
           current_category: '',
-          settings: { timerDuration: 0 }
+          settings: { timerDuration: 0 },
+          custom_words: [],
+          starting_player_index: 0,
+          used_words: []
         });
         setGameState(GameState.REMOTE_LOBBY);
       } else {
@@ -351,22 +463,69 @@ export default function App() {
     if (!roomData) return;
     if (roomData.players.length < 3) return alert("You need at least 3 players to start.");
 
+    // Check Pot Mode
+    if (selectedCategories.includes('custom')) {
+        await updateRoomState(roomCode, { 
+            game_state: 'INPUT', 
+            custom_words: [], 
+            settings: { timerDuration: timerDuration }
+        });
+        return;
+    }
+
     const initializedPlayers = assignRoles(roomData.players);
-    const { word, categoryName } = getRandomWord(selectedCategories, selectedDifficulties);
-    
-    // Use host's local timer setting
-    const settings = { timerDuration: timerDuration }; // This comes from local state set in lobby
+    const usedWordsList = roomData.used_words || [];
+    const { word, categoryName } = getRandomWord(selectedCategories, selectedDifficulties, usedWordsList);
+    const newStartingIndex = ((roomData.starting_player_index || 0) + 1) % roomData.players.length;
 
     await updateRoomState(roomCode, {
       players: initializedPlayers,
       current_word: word,
       current_category: categoryName,
       game_state: 'PLAYING',
-      settings: settings,
+      settings: { timerDuration: timerDuration },
       votes: {},
-      started_at: new Date().toISOString()
+      started_at: new Date().toISOString(),
+      starting_player_index: newStartingIndex,
+      used_words: [...usedWordsList, word] // Update used words
     });
   };
+
+  // Remote Input Phase Handling
+  const [remoteInputSubmitted, setRemoteInputSubmitted] = useState(false);
+  const handleRemoteInputSubmit = async (skipped: boolean) => {
+      if (!skipped && customWordInput.trim()) {
+          await submitCustomWord(roomCode, customWordInput.trim());
+      }
+      setRemoteInputSubmitted(true);
+      setCustomWordInput('');
+  };
+
+  const finalizeRemotePotGame = async () => {
+      if (!roomData) return;
+      
+      const pool = roomData.custom_words || [];
+      if (pool.length === 0) {
+          alert("No words submitted! Defaulting to Animals.");
+          setSelectedCategories(['animals']);
+          await updateRoomState(roomCode, { game_state: 'LOBBY' }); // Reset to lobby to pick new cat
+          return;
+      }
+
+      const initializedPlayers = assignRoles(roomData.players);
+      const { word, categoryName } = getRandomWord(['custom'], [], [], pool);
+      const newStartingIndex = ((roomData.starting_player_index || 0) + 1) % roomData.players.length;
+
+      await updateRoomState(roomCode, {
+          players: initializedPlayers,
+          current_word: word,
+          current_category: categoryName,
+          game_state: 'PLAYING',
+          votes: {},
+          started_at: new Date().toISOString(),
+          starting_player_index: newStartingIndex
+      });
+  }
 
   const handleNextPlayer = () => {
     if (currentPlayerIndex < players.length - 1) {
@@ -432,6 +591,9 @@ export default function App() {
 
   // --- Setup (Local) ---
   if (gameState === GameState.SETUP) {
+    const allRegularCategories = CATEGORIES.filter(c => !c.isCustom).map(c => c.id);
+    const isAllSelected = allRegularCategories.every(id => selectedCategories.includes(id));
+
     return (
       <div className="min-h-screen flex flex-col max-w-md mx-auto relative">
         <Background />
@@ -492,14 +654,13 @@ export default function App() {
             </div>
           </div>
 
-          <div className="space-y-4">
-            <div className="flex justify-between items-end px-2">
-              <h3 className="text-emerald-400 font-bold uppercase text-xs tracking-widest">Categories</h3>
-              <button onClick={toggleAllCategories} className="text-xs text-white/60 hover:text-white underline">
-                {selectedCategories.length === CATEGORIES.length ? 'Deselect All' : 'Select All'}
-              </button>
-            </div>
-            <CategoryGrid categories={CATEGORIES} selectedIds={selectedCategories} onToggle={toggleCategory} />
+          <div className="space-y-4 pb-8">
+             <ExpandableCategorySection 
+                selectedIds={selectedCategories} 
+                onToggle={toggleCategory} 
+                onSelectAll={toggleAllCategories} 
+                isAllSelected={isAllSelected}
+             />
           </div>
         </div>
 
@@ -510,6 +671,95 @@ export default function App() {
         </div>
       </div>
     );
+  }
+
+  // --- LOCAL INPUT PHASE (Pot Mode) ---
+  if (gameState === GameState.INPUT) {
+      const currentPlayer = players[currentPlayerIndex];
+      return (
+        <div className="min-h-screen flex flex-col justify-center items-center max-w-md mx-auto p-6 text-center relative">
+            <Background />
+            <div className="space-y-8 animate-fadeIn z-10 w-full glass-panel p-8 rounded-3xl">
+                <h3 className="text-xl font-bold text-emerald-400 uppercase tracking-widest">Pot Mode</h3>
+                <div>
+                  <p className="text-white/60 mb-2 text-sm">Pass device to:</p>
+                  <h2 className="text-4xl font-bold text-white mb-6">{currentPlayer.name}</h2>
+                </div>
+                
+                <input 
+                    type="text"
+                    value={customWordInput}
+                    onChange={(e) => setCustomWordInput(e.target.value)}
+                    className="w-full bg-slate-900/50 border border-white/20 rounded-xl px-4 py-4 text-white text-center text-xl font-bold mb-4 focus:border-emerald-500 outline-none"
+                    placeholder="Enter a secret word..."
+                />
+                
+                <div className="flex flex-col gap-3">
+                    <Button fullWidth onClick={() => handleLocalCustomSubmit(customWordInput)}>
+                        Submit Word
+                    </Button>
+                    <button 
+                        onClick={() => handleLocalCustomSubmit(null)}
+                        className="text-white/40 text-sm font-bold hover:text-white"
+                    >
+                        Skip (Add nothing)
+                    </button>
+                </div>
+            </div>
+        </div>
+      );
+  }
+
+  // --- REMOTE INPUT PHASE ---
+  if (gameState === GameState.REMOTE_INPUT) {
+      const isHost = roomData?.host_id === myPlayerId;
+      const count = roomData?.custom_words?.length || 0;
+      
+      return (
+        <div className="min-h-screen flex flex-col justify-center items-center max-w-md mx-auto p-6 text-center relative">
+            <Background />
+            <div className="space-y-6 animate-fadeIn z-10 w-full">
+                <div className="w-20 h-20 bg-emerald-500/20 rounded-full flex items-center justify-center mx-auto text-emerald-400 animate-pulse">
+                    <Sparkles size={40} />
+                </div>
+                
+                <h2 className="text-3xl font-bold text-white">Pot Mode</h2>
+                
+                {!remoteInputSubmitted ? (
+                    <div className="glass-panel p-6 rounded-3xl space-y-4">
+                        <p className="text-sm text-slate-300">Enter a word into the pot. It might be chosen as the secret word!</p>
+                        <input 
+                            type="text"
+                            value={customWordInput}
+                            onChange={(e) => setCustomWordInput(e.target.value)}
+                            className="w-full bg-slate-900/50 border border-white/20 rounded-xl px-4 py-4 text-white text-center text-xl font-bold focus:border-emerald-500 outline-none"
+                            placeholder="Type a word..."
+                        />
+                        <Button fullWidth onClick={() => handleRemoteInputSubmit(false)}>Submit</Button>
+                        <button onClick={() => handleRemoteInputSubmit(true)} className="text-white/40 text-sm font-bold">Skip</button>
+                    </div>
+                ) : (
+                    <div className="glass-panel p-6 rounded-3xl">
+                        <CheckCircle size={48} className="text-emerald-400 mx-auto mb-4" />
+                        <p className="font-bold text-white">Waiting for others...</p>
+                    </div>
+                )}
+
+                <div className="bg-white/5 border border-white/10 rounded-xl p-4">
+                    <p className="text-emerald-400 text-2xl font-bold">{count}</p>
+                    <p className="text-xs uppercase tracking-widest text-white/50">Words in Pot</p>
+                </div>
+
+                {isHost && (
+                    <div className="pt-8">
+                        <Button variant="danger" fullWidth onClick={finalizeRemotePotGame}>
+                            Start Game with Pot
+                        </Button>
+                    </div>
+                )}
+            </div>
+        </div>
+      );
   }
 
   // --- Remote Menu ---
@@ -579,6 +829,10 @@ export default function App() {
   // --- Remote Lobby ---
   if (gameState === GameState.REMOTE_LOBBY) {
     const isHost = roomData?.host_id === myPlayerId;
+    // Calculate if all selected for UI
+    const allRegularCategories = CATEGORIES.filter(c => !c.isCustom).map(c => c.id);
+    const isAllSelected = allRegularCategories.every(id => selectedCategories.includes(id));
+
     return (
       <div className="min-h-screen flex flex-col max-w-md mx-auto relative">
         <Background />
@@ -667,14 +921,13 @@ export default function App() {
                     </div>
 
                     {/* Categories UI */}
-                    <div className="space-y-4">
-                        <div className="flex justify-between items-end px-2">
-                        <h3 className="text-emerald-400 font-bold uppercase text-xs tracking-widest">Categories</h3>
-                        <button onClick={toggleAllCategories} className="text-xs text-white/60 hover:text-white underline">
-                            {selectedCategories.length === CATEGORIES.length ? 'Deselect All' : 'Select All'}
-                        </button>
-                        </div>
-                        <CategoryGrid categories={CATEGORIES} selectedIds={selectedCategories} onToggle={toggleCategory} />
+                    <div className="space-y-4 pb-8">
+                        <ExpandableCategorySection 
+                            selectedIds={selectedCategories} 
+                            onToggle={toggleCategory} 
+                            onSelectAll={toggleAllCategories}
+                            isAllSelected={isAllSelected}
+                        />
                     </div>
                 </div>
             ) : (
@@ -704,6 +957,10 @@ export default function App() {
     const totalVotes = Object.keys(roomData?.votes || {}).length;
     const totalPlayers = roomData?.players.length || 0;
     const duration = roomData?.settings?.timerDuration || 0;
+    const startingPlayer = roomData?.players[roomData.starting_player_index || 0];
+
+    // Find Team Mates (for 2 imposters)
+    const otherImposters = roomData?.players.filter(p => p.isImposter && p.id !== myPlayerId) || [];
 
     return (
       <div className="min-h-screen flex flex-col max-w-md mx-auto p-6 text-center justify-center relative">
@@ -731,6 +988,12 @@ export default function App() {
                 <div className="p-10 bg-gradient-to-br from-rose-600 to-red-700 border-2 border-rose-400 rounded-3xl shadow-2xl shadow-rose-900/50 animate-fadeIn">
                 <h2 className="text-4xl font-bold text-white mb-2">YOU ARE THE IMPOSTER</h2>
                 <p className="text-rose-100 font-medium">Fake it 'til you make it.</p>
+                {otherImposters.length > 0 && (
+                    <div className="mt-4 p-2 bg-black/20 rounded-lg">
+                        <p className="text-xs uppercase tracking-widest text-white/70">Your Partner</p>
+                        <p className="font-bold">{otherImposters.map(p => p.name).join(', ')}</p>
+                    </div>
+                )}
                 </div>
             ) : (
                 <div className="p-10 bg-gradient-to-br from-emerald-500 to-teal-600 border-2 border-emerald-400 rounded-3xl shadow-2xl shadow-emerald-900/50 animate-fadeIn">
@@ -739,6 +1002,14 @@ export default function App() {
                 </div>
             )}
          </div>
+
+         {/* Starting Player Badge */}
+         {startingPlayer && (
+             <div className="z-10 bg-indigo-600/80 px-6 py-3 rounded-full mb-8 border border-white/20 animate-float">
+                 <p className="text-xs uppercase tracking-widest text-indigo-200">Starting Player</p>
+                 <p className="text-xl font-bold text-white">{startingPlayer.name}</p>
+             </div>
+         )}
          
          <div className="grid grid-cols-2 gap-3 mb-8">
              <div className="bg-white/5 border border-white/10 p-3 rounded-xl flex items-center justify-center gap-2">
@@ -783,6 +1054,8 @@ export default function App() {
     if (gameState === GameState.PASS_N_PLAY) {
          
          const currentPlayer = players[currentPlayerIndex];
+         const otherImposters = players.filter(p => p.isImposter && p.id !== currentPlayer.id);
+
          return (
           <div className="min-h-screen flex flex-col justify-center items-center max-w-md mx-auto p-6 text-center relative">
             <Background />
@@ -813,6 +1086,12 @@ export default function App() {
                       <div className="p-8 bg-gradient-to-br from-rose-600 to-red-700 border-2 border-rose-400 rounded-3xl shadow-2xl shadow-rose-900/50">
                         <h2 className="text-3xl font-bold text-white mb-2">YOU ARE THE IMPOSTER</h2>
                         <p className="text-rose-100 font-medium">Blend in. Don't let them know.</p>
+                        {otherImposters.length > 0 && (
+                             <div className="mt-4 p-2 bg-black/20 rounded-lg">
+                                <p className="text-xs uppercase tracking-widest text-white/70">Your Partner</p>
+                                <p className="font-bold">{otherImposters.map(p => p.name).join(', ')}</p>
+                            </div>
+                        )}
                       </div>
                    ) : (
                       <div className="p-8 bg-gradient-to-br from-emerald-500 to-teal-600 border-2 border-emerald-400 rounded-3xl shadow-2xl shadow-emerald-900/50">
@@ -857,7 +1136,11 @@ export default function App() {
               <p className="text-slate-300 text-lg">Ask questions. Find the imposter.</p>
             </div>
 
-            {/* REMOVED CATEGORY DISPLAY HERE SO IMPOSTER CANNOT SEE IT ON THE TABLE */}
+            {/* Starting Player Badge */}
+            <div className="bg-indigo-600/80 px-6 py-3 rounded-full border border-white/20 animate-float">
+                 <p className="text-xs uppercase tracking-widest text-indigo-200">Starting Player</p>
+                 <p className="text-xl font-bold text-white">{players[startingPlayerIndex].name}</p>
+            </div>
 
             <Button variant="danger" fullWidth onClick={() => setGameState(GameState.REVEAL)}>
               Reveal Imposter
@@ -872,7 +1155,7 @@ export default function App() {
     const isRemote = gameState === GameState.REMOTE_REVEAL;
     const currentPlayers = isRemote ? roomData?.players || [] : players;
     const word = isRemote ? roomData?.current_word : currentWord;
-    const imposter = currentPlayers.find(p => p.isImposter);
+    const imposters = currentPlayers.filter(p => p.isImposter);
     const isHost = isRemote ? roomData?.host_id === myPlayerId : true; 
 
     // Calculate votes if remote
@@ -902,9 +1185,9 @@ export default function App() {
          
             <div className="space-y-6 w-full">
                <div className="space-y-2">
-                 <p className="text-emerald-400 uppercase tracking-widest text-xs font-bold">The Imposter was</p>
-                 <div className="text-5xl font-bold text-white animate-bounce drop-shadow-2xl">
-                    {imposter?.name}
+                 <p className="text-emerald-400 uppercase tracking-widest text-xs font-bold">The Imposter{imposters.length > 1 ? 's were' : ' was'}</p>
+                 <div className="text-4xl font-bold text-white animate-bounce drop-shadow-2xl">
+                    {imposters.map(p => p.name).join(' & ')}
                  </div>
                </div>
                
@@ -916,7 +1199,7 @@ export default function App() {
 
             <div className="w-full space-y-3 pt-8">
                {isHost ? (
-                   <Button fullWidth onClick={() => isRemote ? updateRoomState(roomCode, { game_state: 'LOBBY', votes: {}, settings: { timerDuration: 0 }, started_at: null }) : startLocalGame()} className="bg-blue-600 hover:bg-blue-500">
+                   <Button fullWidth onClick={() => isRemote ? updateRoomState(roomCode, { game_state: 'LOBBY', votes: {}, settings: { timerDuration: 0 }, started_at: null, custom_words: [] }) : startLocalGame()} className="bg-blue-600 hover:bg-blue-500">
                       <RotateCcw className="mr-2" /> Play Again
                    </Button>
                ) : (

@@ -2,11 +2,13 @@ export enum GameState {
   MENU = 'MENU',
   SETUP = 'SETUP',
   LOBBY = 'LOBBY',
+  INPUT = 'INPUT', // New phase for Pot Mode
   PASS_N_PLAY = 'PASS_N_PLAY',
   PLAYING = 'PLAYING',
   REVEAL = 'REVEAL',
   REMOTE_MENU = 'REMOTE_MENU',
   REMOTE_LOBBY = 'REMOTE_LOBBY',
+  REMOTE_INPUT = 'REMOTE_INPUT', // New phase for Remote Pot Mode
   REMOTE_PLAYING = 'REMOTE_PLAYING',
   REMOTE_REVEAL = 'REMOTE_REVEAL'
 }
@@ -30,6 +32,8 @@ export interface Category {
   name: string;
   icon: string;
   isPremium?: boolean;
+  isNSFW?: boolean;
+  isCustom?: boolean; // For Pot Mode
 }
 
 export interface WordPack {
@@ -54,4 +58,7 @@ export interface RoomData {
   settings?: RoomSettings;
   votes?: Record<string, string>; // voterId -> suspectId
   started_at?: string | null;
+  custom_words?: string[]; // Pool of custom words submitted
+  starting_player_index?: number; // Index of player who starts the discussion
+  used_words?: string[]; // History of words used in this session
 }

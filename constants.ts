@@ -1,6 +1,7 @@
 import { Category, Difficulty, WordPack } from './types';
 
 export const CATEGORIES: Category[] = [
+  { id: 'custom', name: 'Custom Pot', icon: '✨', isCustom: true }, // New Custom Category
   { id: 'animals', name: 'Animals', icon: '🐾' },
   { id: 'food', name: 'Food & Cuisine', icon: '🍔' },
   { id: 'objects', name: 'Objects & Things', icon: '💡' },
@@ -12,6 +13,11 @@ export const CATEGORIES: Category[] = [
   { id: 'tech', name: 'Technology', icon: '💻' },
   { id: 'jobs', name: 'Jobs', icon: '💼' },
   { id: 'places', name: 'Places', icon: '🏛️' },
+  // New Categories
+  { id: 'history', name: 'History', icon: '📜' },
+  { id: 'science', name: 'Science', icon: '🧪' },
+  { id: 'gaming', name: 'Video Games', icon: '🎮' },
+  { id: '90s', name: '90s Nostalgia', icon: '💾' },
   { id: 'fantasy', name: 'Fantasy', icon: '🐉' },
   { id: 'nature', name: 'Nature', icon: '🌲' },
   { id: 'colors', name: 'Colors', icon: '🎨' },
@@ -87,5 +93,25 @@ export const WORD_DATA: WordPack = {
     [Difficulty.EASY]: ['Red', 'Blue', 'Green', 'Yellow', 'Orange', 'Purple', 'Pink'],
     [Difficulty.MEDIUM]: ['Black', 'White', 'Gray', 'Brown', 'Gold', 'Silver', 'Rainbow'],
     [Difficulty.HARD]: ['Turquoise', 'Magenta', 'Cyan', 'Indigo', 'Violet', 'Beige', 'Maroon']
+  },
+  history: {
+      [Difficulty.EASY]: ['War', 'King', 'Queen', 'Pyramid', 'Castle', 'Viking', 'Knight'],
+      [Difficulty.MEDIUM]: ['Revolution', 'Empire', 'Pharaoh', 'Samurai', 'Gladiator', 'Discovery'],
+      [Difficulty.HARD]: ['Renaissance', 'Industrial', 'Colonialism', 'Dynasty', 'Inquisition']
+  },
+  science: {
+      [Difficulty.EASY]: ['Space', 'Atom', 'Cell', 'Planet', 'Magnet', 'Gravity'],
+      [Difficulty.MEDIUM]: ['DNA', 'Bacteria', 'Galaxy', 'Fossil', 'Energy', 'Chemical'],
+      [Difficulty.HARD]: ['Quantum', 'Relativity', 'Photosynthesis', 'Neutron', 'Black Hole']
+  },
+  gaming: {
+      [Difficulty.EASY]: ['Mario', 'Controller', 'Level', 'Boss', 'Jump', 'Win'],
+      [Difficulty.MEDIUM]: ['Minecraft', 'Fortnite', 'Zelda', 'Console', 'Multiplayer', 'Quest'],
+      [Difficulty.HARD]: ['RPG', 'Speedrun', 'Hitbox', 'Glitch', 'Esports', 'NPC']
+  },
+  '90s': {
+      [Difficulty.EASY]: ['VCR', 'Cassette', 'Discman', 'Tamagotchi', 'Titanic', 'Pokemon'],
+      [Difficulty.MEDIUM]: ['Dial-up', 'Beanie Baby', 'Gameboy', 'Friends', 'Nirvana'],
+      [Difficulty.HARD]: ['Y2K', 'Grunge', 'Macarena', 'Walkman', 'Floppy Disk']
   }
 };

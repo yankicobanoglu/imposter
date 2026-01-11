@@ -38,7 +38,10 @@ export const createRoom = async (hostPlayer: Player): Promise<{ success: boolean
       players: [hostPlayer],
       game_state: 'LOBBY',
       current_word: '',
-      current_category: ''
+      current_category: '',
+      custom_words: [],
+      starting_player_index: 0,
+      used_words: []
     });
 
   if (error) {
@@ -81,6 +84,27 @@ export const joinRoom = async (roomCode: string, player: Player): Promise<{ succ
   }
 
   return { success: true };
+};
+
+export const submitCustomWord = async (roomCode: string, word: string) => {
+    const supabase = getSupabase();
+    if (!supabase) return;
+
+    // Use Postgres array_append
+    const { error } = await supabase.rpc('append_custom_word', {
+        p_room_code: roomCode,
+        p_word: word
+    });
+    
+    // Fallback if RPC doesn't exist (basic array fetch update)
+    if (error) {
+        const { data } = await supabase.from('rooms').select('custom_words').eq('room_code', roomCode).single();
+        const currentWords = data?.custom_words || [];
+        await supabase
+            .from('rooms')
+            .update({ custom_words: [...currentWords, word] })
+            .eq('room_code', roomCode);
+    }
 };
 
 export const subscribeToRoom = (roomCode: string, callback: (payload: RoomData) => void) => {
