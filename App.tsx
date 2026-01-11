@@ -1,5 +1,5 @@
-import React, { useState, useEffect, useRef } from 'react';
-import { Users, Wifi, Trash2, HelpCircle, ArrowRight, UserPlus, Play, RotateCcw, Eye, EyeOff, SkipForward, ArrowLeft, Copy, CheckCircle, Sparkles, Link as LinkIcon, Check, Clock, Timer, Gavel, AlertCircle, Settings2, Share } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { Users, Wifi, Trash2, HelpCircle, ArrowRight, UserPlus, RotateCcw, SkipForward, ArrowLeft, CheckCircle, Sparkles, Gavel, Settings2, Share } from 'lucide-react';
 import { GameState, Difficulty, Player, RoomData } from './types';
 import { CATEGORIES } from './constants';
 import { getRandomWord, assignRoles } from './utils/gameLogic';

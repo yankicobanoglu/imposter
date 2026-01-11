@@ -53,5 +53,5 @@ export interface RoomData {
   current_category: string;
   settings?: RoomSettings;
   votes?: Record<string, string>; // voterId -> suspectId
-  started_at?: string;
+  started_at?: string | null;
 }
