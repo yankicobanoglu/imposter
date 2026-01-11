@@ -284,6 +284,15 @@ export default function App() {
   useEffect(() => {
     if ((gameState === GameState.REMOTE_LOBBY || gameState === GameState.REMOTE_PLAYING || gameState === GameState.REMOTE_REVEAL || gameState === GameState.REMOTE_INPUT) && roomCode) {
       const sub = subscribeToRoom(roomCode, (newData) => {
+        // Check if I was kicked (User is no longer in the player list, but state is not MENU)
+        if (myPlayerId && newData.players && !newData.players.some(p => p.id === myPlayerId)) {
+            alert("You have been kicked from the room.");
+            setGameState(GameState.MENU);
+            setRoomData(null);
+            setRoomCode('');
+            return;
+        }
+
         setRoomData(newData);
         if (newData.game_state === 'PLAYING' && gameState !== GameState.REMOTE_PLAYING) setGameState(GameState.REMOTE_PLAYING);
         if (newData.game_state === 'REVEAL' && gameState !== GameState.REMOTE_REVEAL) setGameState(GameState.REMOTE_REVEAL);
@@ -292,7 +301,7 @@ export default function App() {
       });
       return () => { sub?.unsubscribe(); };
     }
-  }, [roomCode, gameState]);
+  }, [roomCode, gameState, myPlayerId]);
 
   // Timer Effect (Local)
   useEffect(() => {
@@ -414,6 +423,14 @@ export default function App() {
       votes: { ...currentVotes, [myPlayerId]: suspectId }
     });
     setShowVoteModal(false);
+  };
+
+  const handleKickPlayer = async (playerId: string, playerName: string) => {
+      if (!roomData) return;
+      if (confirm(`Are you sure you want to kick ${playerName}?`)) {
+          const newPlayers = roomData.players.filter(p => p.id !== playerId);
+          await updateRoomState(roomCode, { players: newPlayers });
+      }
   };
 
   // --- Game Flows ---
@@ -1029,11 +1046,23 @@ export default function App() {
                 </div>
                 <div className="space-y-2">
                     {roomData?.players.map((p) => (
-                    <div key={p.id} className="bg-white/5 p-4 rounded-xl flex items-center justify-between border border-white/5">
-                        <span className={`font-bold ${p.id === myPlayerId ? "text-emerald-400" : "text-white"}`}>
-                        {p.name} {p.id === myPlayerId && "(You)"}
-                        </span>
-                        {roomData.host_id === p.id && <span className="text-[10px] font-bold bg-indigo-500 px-2 py-1 rounded text-white tracking-wider">HOST</span>}
+                    <div key={p.id} className="bg-white/5 p-4 rounded-xl flex items-center justify-between border border-white/5 group">
+                        <div className="flex items-center gap-2">
+                            <span className={`font-bold ${p.id === myPlayerId ? "text-emerald-400" : "text-white"}`}>
+                            {p.name} {p.id === myPlayerId && "(You)"}
+                            </span>
+                            {roomData.host_id === p.id && <span className="text-[10px] font-bold bg-indigo-500 px-2 py-1 rounded text-white tracking-wider">HOST</span>}
+                        </div>
+                        
+                        {isHost && p.id !== myPlayerId && (
+                             <button 
+                                onClick={() => handleKickPlayer(p.id, p.name)}
+                                className="p-2 text-slate-500 hover:text-red-400 hover:bg-white/10 rounded-lg transition-colors"
+                                title="Kick Player"
+                             >
+                                <Trash2 size={18} />
+                             </button>
+                        )}
                     </div>
                     ))}
                 </div>
