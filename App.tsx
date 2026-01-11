@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Users, Wifi, Trash2, HelpCircle, ArrowRight, UserPlus, RotateCcw, SkipForward, ArrowLeft, CheckCircle, Sparkles, Gavel, Settings2, Share } from 'lucide-react';
+import { Users, Wifi, Trash2, HelpCircle, ArrowRight, UserPlus, RotateCcw, SkipForward, ArrowLeft, CheckCircle, Sparkles, Gavel, Settings2, Share, XCircle } from 'lucide-react';
 import { GameState, Difficulty, Player, RoomData } from './types';
 import { CATEGORIES } from './constants';
 import { getRandomWord, assignRoles } from './utils/gameLogic';
@@ -141,6 +141,9 @@ export default function App() {
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const [copySuccess, setCopySuccess] = useState(false);
   const [showVoteModal, setShowVoteModal] = useState(false);
+  
+  // New State for Invite Flow
+  const [isInviteFlow, setIsInviteFlow] = useState<boolean>(false);
 
   // --- Effects ---
 
@@ -150,6 +153,7 @@ export default function App() {
     const codeParam = params.get('room');
     if (codeParam) {
       setRoomCode(codeParam.toUpperCase());
+      setIsInviteFlow(true);
       setGameState(GameState.REMOTE_MENU);
     }
   }, []);
@@ -273,6 +277,8 @@ export default function App() {
 
   const startLocalGame = () => {
     if (selectedCategories.length === 0) return alert("Please select at least one category.");
+    if (players.length < 3) return alert("You need at least 3 players to start.");
+    
     setIsRevealing(false);
     const initializedPlayers = assignRoles(players);
     setPlayers(initializedPlayers);
@@ -343,6 +349,8 @@ export default function App() {
 
   const startRemoteGame = async () => {
     if (!roomData) return;
+    if (roomData.players.length < 3) return alert("You need at least 3 players to start.");
+
     const initializedPlayers = assignRoles(roomData.players);
     const { word, categoryName } = getRandomWord(selectedCategories, selectedDifficulties);
     
@@ -371,6 +379,11 @@ export default function App() {
 
   const handleSkipWord = () => {
     startLocalGame();
+  };
+  
+  const cancelInvite = () => {
+    setIsInviteFlow(false);
+    setRoomCode('');
   };
 
   // --- Render Views ---
@@ -521,27 +534,42 @@ export default function App() {
             />
           </div>
 
-          <div className="glass-panel p-6 rounded-3xl">
-            <h3 className="text-white font-bold mb-4 flex items-center gap-2"><Sparkles size={18} className="text-yellow-400"/> Host a Game</h3>
-            <Button fullWidth onClick={handleCreateRoom} disabled={isLoading} variant="primary">
-              {isLoading ? 'Creating...' : 'Create Room'}
-            </Button>
-          </div>
+          {/* HIDE CREATE BUTTON IF INVITED */}
+          {!isInviteFlow && (
+            <div className="glass-panel p-6 rounded-3xl">
+                <h3 className="text-white font-bold mb-4 flex items-center gap-2"><Sparkles size={18} className="text-yellow-400"/> Host a Game</h3>
+                <Button fullWidth onClick={handleCreateRoom} disabled={isLoading} variant="primary">
+                {isLoading ? 'Creating...' : 'Create Room'}
+                </Button>
+            </div>
+          )}
 
-          <div className="glass-panel p-6 rounded-3xl">
-            <h3 className="text-white font-bold mb-4 flex items-center gap-2"><Users size={18} className="text-blue-400"/> Join a Game</h3>
-            {/* FIXED ALIGNMENT: removed h-14, using padding for height */}
+          <div className={`glass-panel p-6 rounded-3xl ${isInviteFlow ? 'border-emerald-500/50 shadow-lg shadow-emerald-500/10' : ''}`}>
+            <h3 className="text-white font-bold mb-4 flex items-center gap-2">
+                <Users size={18} className={isInviteFlow ? "text-emerald-400" : "text-blue-400"}/> 
+                {isInviteFlow ? 'Join Invited Room' : 'Join a Game'}
+            </h3>
+            
             <div className="flex gap-2 items-center">
               <input 
                 type="text" 
                 value={roomCode}
                 onChange={(e) => setRoomCode(e.target.value.toUpperCase())}
-                className="flex-1 bg-slate-900/50 border border-white/10 rounded-2xl px-4 py-4 text-white focus:outline-none focus:border-emerald-500 uppercase tracking-widest font-mono text-center font-bold text-xl min-w-0"
+                readOnly={isInviteFlow}
+                className={`flex-1 bg-slate-900/50 border rounded-2xl px-4 py-4 text-white focus:outline-none uppercase tracking-widest font-mono text-center font-bold text-xl min-w-0 ${isInviteFlow ? 'border-emerald-500/30 text-emerald-400 cursor-not-allowed' : 'border-white/10 focus:border-emerald-500'}`}
                 placeholder="CODE"
                 maxLength={4}
               />
               <Button onClick={handleJoinRoom} disabled={isLoading} className="shrink-0">Join</Button>
             </div>
+            
+            {isInviteFlow && (
+                 <div className="mt-4 text-center">
+                    <button onClick={cancelInvite} className="text-xs text-slate-400 hover:text-white flex items-center justify-center gap-1 mx-auto">
+                        <XCircle size={14}/> Cancel Invite
+                    </button>
+                 </div>
+            )}
           </div>
         </div>
       </div>
@@ -691,7 +719,8 @@ export default function App() {
 
          <div className="mb-8 z-10 flex flex-col items-center gap-2">
             <span className="bg-white/10 backdrop-blur border border-white/20 text-white px-4 py-1.5 rounded-full text-xs font-bold uppercase tracking-wider">
-              Category: {roomData?.current_category}
+              {/* HIDDEN CATEGORY FROM IMPOSTER */}
+              Category: {myRole?.isImposter ? '???' : roomData?.current_category}
             </span>
          </div>
          
@@ -776,7 +805,8 @@ export default function App() {
               <div className="space-y-8 animate-fadeIn w-full z-10">
                  <div className="space-y-4">
                    <div className="inline-block px-4 py-1 rounded-full bg-white/10 text-white/70 text-sm font-bold border border-white/10">
-                     Category: <span className="text-white">{currentCategoryName}</span>
+                     {/* HIDDEN CATEGORY FROM IMPOSTER */}
+                     Category: <span className="text-white">{currentPlayer.isImposter ? '???' : currentCategoryName}</span>
                    </div>
                    
                    {currentPlayer.isImposter ? (
@@ -827,10 +857,7 @@ export default function App() {
               <p className="text-slate-300 text-lg">Ask questions. Find the imposter.</p>
             </div>
 
-            <div className="p-6 bg-white/5 border border-white/10 rounded-2xl w-full backdrop-blur-md">
-               <p className="text-xs font-bold text-emerald-400 uppercase tracking-widest mb-1">Current Category</p>
-               <p className="text-2xl font-bold text-white">{currentCategoryName}</p>
-            </div>
+            {/* REMOVED CATEGORY DISPLAY HERE SO IMPOSTER CANNOT SEE IT ON THE TABLE */}
 
             <Button variant="danger" fullWidth onClick={() => setGameState(GameState.REVEAL)}>
               Reveal Imposter
