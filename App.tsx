@@ -15,7 +15,7 @@ const Background = () => (
   <div className="fixed inset-0 -z-10 bg-[#0f172a] overflow-hidden">
     <div className="absolute top-0 left-0 w-full h-full bg-gradient-to-br from-indigo-950 via-slate-900 to-slate-950"></div>
     <div className="absolute top-[-10%] left-[-10%] w-[500px] h-[500px] bg-purple-600/20 rounded-full blur-[100px] animate-float"></div>
-    <div className="absolute bottom-[-10%] right-[-10%] w-[500px] h-[500px] bg-emerald-600/10 rounded-full blur-[100px] animate-float" style={{ animationDelay: '2s' }}></div>
+    <div className="absolute bottom-[-10%] right-[-10%] w-[500px] h-[500px] bg-emerald-600/5 rounded-full blur-[120px] animate-float" style={{ animationDelay: '2s' }}></div>
   </div>
 );
 
@@ -708,21 +708,16 @@ export default function App() {
           </div>
 
           {/* Footer Section */}
-          <div className="mt-8 flex flex-col items-center gap-6">
-             <button 
-               onClick={() => setShowFeatureRequest(true)}
-               className="flex items-center gap-2 text-yellow-400 hover:text-yellow-300 bg-yellow-400/10 px-4 py-2 rounded-full border border-yellow-400/20 transition-all hover:bg-yellow-400/20 text-sm font-bold"
-             >
-                <MessageSquare size={16} /> Feature Request?
-             </button>
-
-             <div className="flex gap-4 text-xs text-slate-500 font-semibold">
-                <button onClick={() => setShowTos(true)} className="hover:text-emerald-400 transition-colors">Terms of Service</button>
+          <div className="mt-8 flex flex-col items-center gap-4">
+             <div className="flex gap-4 text-xs text-slate-500 font-semibold items-center">
+                <button onClick={() => setShowTos(true)} className="hover:text-emerald-400 transition-colors">Terms</button>
                 <span>•</span>
-                <button onClick={() => setShowPrivacy(true)} className="hover:text-emerald-400 transition-colors">Privacy Policy</button>
+                <button onClick={() => setShowPrivacy(true)} className="hover:text-emerald-400 transition-colors">Privacy</button>
+                <span>•</span>
+                <button onClick={() => setShowFeatureRequest(true)} className="hover:text-yellow-400 transition-colors">Request Feature</button>
              </div>
 
-             <div className="text-transparent bg-clip-text bg-gradient-to-r from-purple-400 to-pink-400 text-[10px] font-bold uppercase tracking-[0.2em] opacity-80">
+             <div className="text-slate-700 text-[10px] font-bold uppercase tracking-[0.2em]">
                 Vibed with Gemini {APP_VERSION}
              </div>
           </div>
