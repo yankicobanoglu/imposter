@@ -41,18 +41,30 @@ const cleanupOldRooms = async () => {
       .delete({ count: 'exact' })
       .lt('created_at', oneDayAgo);
 
-    if (errOld) console.warn("Cleanup (24h) warning:", errOld.message);
+    if (errOld) {
+        // Handle specific schema error where column is missing
+        if (errOld.message && errOld.message.includes("column") && errOld.message.includes("does not exist")) {
+             console.error("❌ DATABASE CONFIGURATION ERROR: The 'rooms' table is missing the 'created_at' column.");
+             console.error("🛠️ SOLUTION: Run this SQL in your Supabase SQL Editor:");
+             console.error("ALTER TABLE rooms ADD COLUMN created_at TIMESTAMPTZ DEFAULT NOW();");
+             return; // Stop further cleanup attempts to prevent spam
+        }
+        console.warn("Cleanup (24h) warning:", errOld.message);
+    } 
     else if (countOld && countOld > 0) console.log(`Deleted ${countOld} rooms older than 24h.`);
 
     // 2. Delete STALE LOBBIES older than 4 hours (created but never played)
-    const { count: countLobby, error: errLobby } = await supabase
-      .from('rooms')
-      .delete({ count: 'exact' })
-      .eq('game_state', 'LOBBY')
-      .lt('created_at', fourHoursAgo);
+    // Only run if the table schema seems correct (previous step didn't fail with schema error)
+    if (!errOld) {
+        const { count: countLobby, error: errLobby } = await supabase
+        .from('rooms')
+        .delete({ count: 'exact' })
+        .eq('game_state', 'LOBBY')
+        .lt('created_at', fourHoursAgo);
 
-    if (errLobby) console.warn("Cleanup (Lobby) warning:", errLobby.message);
-    else if (countLobby && countLobby > 0) console.log(`Deleted ${countLobby} stale lobbies older than 4h.`);
+        if (errLobby) console.warn("Cleanup (Lobby) warning:", errLobby.message);
+        else if (countLobby && countLobby > 0) console.log(`Deleted ${countLobby} stale lobbies older than 4h.`);
+    }
       
   } catch (e) {
     console.warn("Lazy cleanup failed:", e);
