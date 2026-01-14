@@ -23,26 +23,38 @@ export const hasCredentials = () => {
   return !!(SUPABASE_URL && SUPABASE_ANON_KEY);
 };
 
-// Helper: Lazy cleanup of old rooms (older than 24h)
+// Helper: Lazy cleanup of old rooms
 const cleanupOldRooms = async () => {
   const supabase = getSupabase();
   if (!supabase) return;
 
   try {
-    const twentyFourHoursAgo = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
+    const now = Date.now();
+    const oneDayAgo = new Date(now - 24 * 60 * 60 * 1000).toISOString();
+    const fourHoursAgo = new Date(now - 4 * 60 * 60 * 1000).toISOString();
     
-    // We attempt to delete old rooms. 
-    // This relies on RLS policies being permissive (which "Always True" implies),
-    // or the user being the owner of the old rooms (if RLS matched user ID).
-    // Given the previous warnings about permissive RLS, this will likely work globally.
-    await supabase
+    console.log("🧹 Running lazy cleanup...");
+
+    // 1. Delete ANY rooms older than 24 hours
+    const { count: countOld, error: errOld } = await supabase
       .from('rooms')
-      .delete()
-      .lt('created_at', twentyFourHoursAgo);
+      .delete({ count: 'exact' })
+      .lt('created_at', oneDayAgo);
+
+    if (errOld) console.warn("Cleanup (24h) warning:", errOld.message);
+    else if (countOld && countOld > 0) console.log(`Deleted ${countOld} rooms older than 24h.`);
+
+    // 2. Delete STALE LOBBIES older than 4 hours (created but never played)
+    const { count: countLobby, error: errLobby } = await supabase
+      .from('rooms')
+      .delete({ count: 'exact' })
+      .eq('game_state', 'LOBBY')
+      .lt('created_at', fourHoursAgo);
+
+    if (errLobby) console.warn("Cleanup (Lobby) warning:", errLobby.message);
+    else if (countLobby && countLobby > 0) console.log(`Deleted ${countLobby} stale lobbies older than 4h.`);
       
   } catch (e) {
-    // We silence errors here so we don't block the user from creating a room
-    // if cleanup fails.
     console.warn("Lazy cleanup failed:", e);
   }
 };
@@ -52,7 +64,7 @@ export const createRoom = async (hostPlayer: Player): Promise<{ success: boolean
   if (!supabase) return { success: false, error: "Database not configured. Check config." };
 
   // Trigger lazy cleanup before creating new room
-  // We don't await this to ensure the UI feels snappy
+  // We don't await this to ensure the UI feels snappy, but we log it now
   cleanupOldRooms();
 
   // Generate a random 4-letter code
