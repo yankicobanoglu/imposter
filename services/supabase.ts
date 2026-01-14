@@ -23,9 +23,37 @@ export const hasCredentials = () => {
   return !!(SUPABASE_URL && SUPABASE_ANON_KEY);
 };
 
+// Helper: Lazy cleanup of old rooms (older than 24h)
+const cleanupOldRooms = async () => {
+  const supabase = getSupabase();
+  if (!supabase) return;
+
+  try {
+    const twentyFourHoursAgo = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
+    
+    // We attempt to delete old rooms. 
+    // This relies on RLS policies being permissive (which "Always True" implies),
+    // or the user being the owner of the old rooms (if RLS matched user ID).
+    // Given the previous warnings about permissive RLS, this will likely work globally.
+    await supabase
+      .from('rooms')
+      .delete()
+      .lt('created_at', twentyFourHoursAgo);
+      
+  } catch (e) {
+    // We silence errors here so we don't block the user from creating a room
+    // if cleanup fails.
+    console.warn("Lazy cleanup failed:", e);
+  }
+};
+
 export const createRoom = async (hostPlayer: Player): Promise<{ success: boolean; code?: string; error?: string }> => {
   const supabase = getSupabase();
   if (!supabase) return { success: false, error: "Database not configured. Check config." };
+
+  // Trigger lazy cleanup before creating new room
+  // We don't await this to ensure the UI feels snappy
+  cleanupOldRooms();
 
   // Generate a random 4-letter code
   const roomCode = Math.random().toString(36).substring(2, 6).toUpperCase();
