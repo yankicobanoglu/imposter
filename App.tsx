@@ -250,6 +250,10 @@ export default function App() {
   const [customWordInput, setCustomWordInput] = useState<string>('');
   const [usedWords, setUsedWords] = useState<string[]>([]); // Track used words locally
   
+  // Hint System
+  const [hintText, setHintText] = useState<string | null>(null);
+  const [isLoadingHint, setIsLoadingHint] = useState(false);
+  
   // Remote Play State
   const [showHowToPlay, setShowHowToPlay] = useState<boolean>(false);
   const [roomCode, setRoomCode] = useState<string>('');
@@ -433,6 +437,23 @@ export default function App() {
       }
   };
 
+  const fetchHint = async (word: string) => {
+      setIsLoadingHint(true);
+      try {
+          const response = await fetch(`https://api.dictionaryapi.dev/api/v2/entries/en/${word}`);
+          const data = await response.json();
+          if (Array.isArray(data) && data.length > 0 && data[0].meanings?.[0]?.definitions?.[0]?.definition) {
+              setHintText(data[0].meanings[0].definitions[0].definition);
+          } else {
+              setHintText("No definition found for this word.");
+          }
+      } catch (e) {
+          setHintText("Could not load hint. Check internet connection.");
+      } finally {
+          setIsLoadingHint(false);
+      }
+  };
+
   // --- Game Flows ---
 
   const startLocalGame = () => {
@@ -448,6 +469,7 @@ export default function App() {
         return;
     }
 
+    setHintText(null); // Reset hint state for new game
     setIsRevealing(false);
     // Use the localImposterCount (1 or 2)
     const initializedPlayers = assignRoles(players, localImposterCount);
@@ -488,6 +510,7 @@ export default function App() {
           }
           
           // Start the actual game with custom pool
+          setHintText(null);
           setIsRevealing(false);
           // Use localImposterCount here too
           const initializedPlayers = assignRoles(players, localImposterCount);
@@ -642,6 +665,7 @@ export default function App() {
   }
 
   const handleNextPlayer = () => {
+    setHintText(null); // Reset hint state for next player
     if (currentPlayerIndex < players.length - 1) {
       setCurrentPlayerIndex(currentPlayerIndex + 1);
       setIsRevealing(false);
@@ -651,6 +675,7 @@ export default function App() {
   };
 
   const handleSkipWord = () => {
+    setHintText(null); // Reset hint state
     startLocalGame();
   };
   
@@ -1328,20 +1353,45 @@ export default function App() {
                       <div className="p-8 bg-gradient-to-br from-emerald-500 to-teal-600 border-2 border-emerald-400 rounded-3xl shadow-2xl shadow-emerald-900/50">
                         <p className="text-emerald-100 font-bold uppercase tracking-widest mb-2 text-xs">The Secret Word Is</p>
                         <h2 className="text-4xl font-bold text-white">{currentWord}</h2>
+                        {isLoadingHint && <p className="mt-4 text-emerald-100 animate-pulse">Loading hint...</p>}
+                        {hintText && (
+                            <div className="mt-4 pt-4 border-t border-emerald-400/30">
+                                <p className="text-emerald-100 font-bold text-xs uppercase mb-1">Hint</p>
+                                <p className="text-white italic text-sm">{hintText}</p>
+                            </div>
+                        )}
                       </div>
                    )}
                  </div>
+                 
                  <div className="space-y-3 pt-4">
-                   <Button fullWidth onClick={handleNextPlayer}>
-                     {currentPlayerIndex < players.length - 1 ? 'Pass to Next Player' : "Let's Play!"}
-                   </Button>
-                   {!currentPlayer.isImposter && (
-                     <button 
-                      onClick={handleSkipWord}
-                      className="flex items-center justify-center gap-2 w-full py-4 text-slate-400 hover:text-white transition-colors text-sm font-semibold"
-                     >
-                       <SkipForward size={16} /> I don't know this word
-                     </button>
+                   {hintText ? (
+                        <>
+                            <Button fullWidth onClick={handleNextPlayer}>
+                                Got it, next player
+                            </Button>
+                            <button 
+                                onClick={handleSkipWord}
+                                className="flex items-center justify-center gap-2 w-full py-4 text-slate-400 hover:text-white transition-colors text-sm font-semibold"
+                            >
+                                <SkipForward size={16} /> Skip this word
+                            </button>
+                        </>
+                   ) : (
+                        <>
+                            <Button fullWidth onClick={handleNextPlayer}>
+                                {currentPlayerIndex < players.length - 1 ? 'Pass to Next Player' : "Let's Play!"}
+                            </Button>
+                            {!currentPlayer.isImposter && (
+                                <button 
+                                    onClick={() => fetchHint(currentWord)}
+                                    disabled={isLoadingHint}
+                                    className="flex items-center justify-center gap-2 w-full py-4 text-slate-400 hover:text-white transition-colors text-sm font-semibold disabled:opacity-50"
+                                >
+                                    {isLoadingHint ? 'Loading...' : <><HelpCircle size={16} /> I don't know this word, give me a hint</>}
+                                </button>
+                            )}
+                        </>
                    )}
                  </div>
               </div>
