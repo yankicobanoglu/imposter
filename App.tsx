@@ -225,11 +225,27 @@ export default function App() {
   const [gameState, setGameState] = useState<GameState>(GameState.MENU);
   
   // Local Play State
-  const [players, setPlayers] = useState<Player[]>([
-    { id: '1', name: 'Player 1', isImposter: false, score: 0 },
-    { id: '2', name: 'Player 2', isImposter: false, score: 0 },
-    { id: '3', name: 'Player 3', isImposter: false, score: 0 },
-  ]);
+  const [players, setPlayers] = useState<Player[]>(() => {
+    const saved = localStorage.getItem('imposter_players');
+    if (saved) {
+      try {
+        return JSON.parse(saved);
+      } catch (e) {
+        console.error("Failed to load players", e);
+      }
+    }
+    return [
+      { id: '1', name: 'Player 1', isImposter: false, score: 0 },
+      { id: '2', name: 'Player 2', isImposter: false, score: 0 },
+      { id: '3', name: 'Player 3', isImposter: false, score: 0 },
+    ];
+  });
+
+  // Save players to localStorage
+  useEffect(() => {
+    localStorage.setItem('imposter_players', JSON.stringify(players));
+  }, [players]);
+
   const [selectedCategories, setSelectedCategories] = useState<string[]>(['animals', 'food', 'objects']);
   const [selectedDifficulties, setSelectedDifficulties] = useState<Difficulty[]>([Difficulty.EASY]);
   // Lifted state for categories expansion
@@ -1326,7 +1342,7 @@ export default function App() {
                 </div>
                 <div className="pt-8">
                   <Button onClick={() => setIsRevealing(true)} fullWidth variant="glass" className="h-16 text-lg">
-                    Tap to Reveal Role
+                    I am {currentPlayer.name}
                   </Button>
                 </div>
               </div>
@@ -1415,6 +1431,11 @@ export default function App() {
             <div>
               <h2 className="text-4xl font-bold text-white mb-2 drop-shadow-lg">Discuss!</h2>
               <p className="text-slate-300 text-lg">Ask questions. Find the imposter.</p>
+              <div className="mt-6 p-4 bg-white/5 border border-white/10 rounded-2xl">
+                <p className="text-xs text-emerald-400 font-bold uppercase tracking-widest leading-relaxed">
+                  Remember: Imposter can win the game by correctly guessing the secret word even after voted out!
+                </p>
+              </div>
             </div>
 
             {/* Starting Player Badge */}
