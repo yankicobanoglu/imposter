@@ -224,6 +224,53 @@ export default function App() {
   // --- State ---
   const [gameState, setGameState] = useState<GameState>(GameState.MENU);
   
+  // PWA State
+  const [deferredPrompt, setDeferredPrompt] = useState<any>(null);
+  const [isInstallable, setIsInstallable] = useState(false);
+  const [isIosInstallable, setIsIosInstallable] = useState(false);
+
+  useEffect(() => {
+    // Standard PWA install prompt
+    const handleBeforeInstallPrompt = (e: any) => {
+      e.preventDefault();
+      setDeferredPrompt(e);
+      setIsInstallable(true);
+    };
+
+    window.addEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
+
+    // iOS Safari detection
+    const isIos = () => {
+      const userAgent = window.navigator.userAgent.toLowerCase();
+      return /iphone|ipad|ipod/.test(userAgent);
+    };
+    
+    const isStandalone = () => {
+      return ('standalone' in window.navigator) && (window.navigator as any).standalone;
+    };
+
+    if (isIos() && !isStandalone()) {
+      setIsIosInstallable(true);
+    }
+
+    return () => {
+      window.removeEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
+    };
+  }, []);
+
+  const handleInstallClick = async () => {
+    if (deferredPrompt) {
+      deferredPrompt.prompt();
+      const { outcome } = await deferredPrompt.userChoice;
+      if (outcome === 'accepted') {
+        setIsInstallable(false);
+      }
+      setDeferredPrompt(null);
+    } else if (isIosInstallable) {
+      alert('To install the app on iOS: tap the Share icon at the bottom of Safari, then tap "Add to Home Screen".');
+    }
+  };
+
   // Local Play State
   const [players, setPlayers] = useState<Player[]>(() => {
     const saved = localStorage.getItem('imposter_players');
@@ -768,6 +815,18 @@ export default function App() {
 
           {/* Footer Section */}
           <div className="mt-8 flex flex-col items-center gap-4">
+             {(isInstallable || isIosInstallable) && (
+               <div 
+                 onClick={handleInstallClick}
+                 className="cursor-pointer bg-white/5 border border-emerald-500/30 rounded-xl p-3 text-center w-full animate-fadeIn hover:bg-white/10 transition-colors"
+               >
+                 <p className="text-emerald-300 text-sm font-medium flex items-center justify-center gap-2">
+                   <Sparkles size={16} />
+                   Tip: Install to Home Screen for a full-screen native experience
+                 </p>
+               </div>
+             )}
+
              <div className="flex gap-4 text-xs text-slate-500 font-semibold items-center">
                 <button onClick={() => setShowTos(true)} className="hover:text-emerald-400 transition-colors">Terms</button>
                 <span>•</span>
